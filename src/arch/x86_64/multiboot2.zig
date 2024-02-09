@@ -133,9 +133,9 @@ pub const MemMap = extern struct {
     pub fn areas(self: *const MemMap) []Entry {
         if (@sizeOf(Entry) != self.entry_size) @panic("Invalid Entry size");
 
-        const self_usize: usize = @intFromPtr(self);
-
         var entries: []Entry = undefined;
+
+        const self_usize: usize = @intFromPtr(self);
         entries.ptr = @ptrFromInt(self_usize + 16);
 
         const size: usize = @as(usize, self.base.size) - @sizeOf(u32) * 4;

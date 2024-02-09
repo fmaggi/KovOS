@@ -52,6 +52,8 @@ pub fn build(b: *std.Build) void {
         // "long",
     };
 
+    // For some reason assembly compilation fails
+    // So I added it as a systemCommand
     const asm_dir = b.fmt("{s}/nasm-o", .{b.cache_root.path.?});
     cwd.deleteTree(asm_dir) catch {};
     cwd.makeDir(asm_dir) catch @panic("asm");

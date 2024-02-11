@@ -114,10 +114,6 @@ pub const BootDev = extern struct {
 };
 
 pub const MemMap = extern struct {
-    comptime {
-        if (@sizeOf(MemMap) != 24) @compileError("Wrong MemMap size");
-    }
-
     pub const Entry = extern struct {
         pub const AVAILABLE = 1;
         pub const RESERVED = 2;
@@ -136,9 +132,9 @@ pub const MemMap = extern struct {
         var entries: []Entry = undefined;
 
         const self_usize: usize = @intFromPtr(self);
-        entries.ptr = @ptrFromInt(self_usize + 16);
+        entries.ptr = @ptrFromInt(self_usize + @sizeOf(MemMap));
 
-        const size: usize = @as(usize, self.base.size) - @sizeOf(u32) * 4;
+        const size: usize = @as(usize, self.base.size) - @sizeOf(MemMap);
 
         if (size % @sizeOf(Entry) != 0) @panic("MemMap size mismatch");
 
@@ -150,7 +146,6 @@ pub const MemMap = extern struct {
     base: Tag,
     entry_size: u32,
     entry_version: u32,
-    entries: [*]Entry,
 };
 
 pub const VBE = extern struct {
@@ -221,9 +216,172 @@ pub const Framebuffer = extern struct {
 pub const ElfSections = extern struct {
     base: Tag,
     num: u32,
-    entsize: u32,
+    entry_size: u32,
     shndx: u32,
-    sections: [*:0]u8,
+
+    pub fn iterator(self: *const ElfSections) Section.Iterator {
+        const string_section_offset: usize = self.shndx * self.entry_size;
+
+        const self_usize: usize = @intFromPtr(self);
+        const first_section_usize = self_usize + @sizeOf(ElfSections);
+
+        return .{
+            .string_section = @ptrFromInt(first_section_usize + string_section_offset),
+            .current = @ptrFromInt(first_section_usize),
+            .remaining = self.num - 1,
+            .entry_size = self.entry_size,
+        };
+    }
+
+    pub const Section = struct {
+        inner: *const anyopaque,
+        string_section: ?*const anyopaque,
+        entry_size: u32,
+
+        pub fn name(self: Section) []const u8 {
+            // string_section is just a regular Section at a particular offset
+            // Take advantage of that.
+            const string_section: Section = .{
+                .inner = self.string_section.?,
+                .string_section = null,
+                .entry_size = self.entry_size,
+            };
+
+            const addr = string_section.address() + self.name_index();
+
+            const str: [*]const u8 = @ptrFromInt(addr);
+            var len: usize = 0;
+            while (str[len] != 0) {
+                len += 1;
+            }
+
+            var slice: []const u8 = undefined;
+            slice.ptr = str;
+            slice.len = len;
+            return slice;
+        }
+
+        pub fn name_index(self: Section) u64 {
+            return self.get("name_index");
+        }
+
+        pub fn typ(self: Section) u64 {
+            return self.get("typ");
+        }
+
+        pub fn flags(self: Section) u64 {
+            return self.get("flags");
+        }
+
+        pub fn address(self: Section) u64 {
+            return self.get("addr");
+        }
+
+        pub fn offset(self: Section) u64 {
+            return self.get("offset");
+        }
+
+        pub fn size(self: Section) u64 {
+            return self.get("size");
+        }
+
+        pub fn link(self: Section) u64 {
+            return self.get("link");
+        }
+
+        pub fn info(self: Section) u64 {
+            return self.get("info");
+        }
+
+        pub fn addralign(self: Section) u64 {
+            return self.get("addralign");
+        }
+
+        fn get(self: Section, comptime field: []const u8) u64 {
+            // Elf headers (for 64 bit, mayber for 32 bit too) are misaligned, so
+            // ptr casting is UB. I have to do this mess to get it to work
+            const ptr_usize: usize = @intFromPtr(self.inner);
+            switch (self.entry_size) {
+                40 => {
+                    const fT = FieldType(Section32, field);
+                    const field_offset = @offsetOf(Section32, field);
+                    const field_ptr: [*]const u8 = @ptrFromInt(ptr_usize + field_offset);
+
+                    var buf: [@sizeOf(fT)]u8 = @bitCast(@as(fT, 0));
+                    @memcpy(&buf, field_ptr);
+                    return @intCast(@as(fT, @bitCast(buf)));
+                },
+                64 => {
+                    const fT = FieldType(Section64, field);
+                    const field_offset = @offsetOf(Section64, field);
+                    const field_ptr: [*]const u8 = @ptrFromInt(ptr_usize + field_offset);
+
+                    var buf: [@sizeOf(fT)]u8 = @bitCast(@as(fT, 0));
+                    @memcpy(&buf, field_ptr);
+                    return @intCast(@as(fT, @bitCast(buf)));
+                },
+                else => @panic("Unkown elf section size"),
+            }
+        }
+
+        fn FieldType(comptime T: type, comptime field: []const u8) type {
+            const FieldEnum = std.meta.FieldEnum(T);
+            const field_enum = std.meta.stringToEnum(FieldEnum, field) orelse @compileError("Unkown field");
+            const field_info = std.meta.fieldInfo(T, field_enum);
+            return field_info.type;
+        }
+
+        pub const Iterator = struct {
+            string_section: *const anyopaque,
+            current: *const anyopaque,
+            remaining: u32,
+            entry_size: u32,
+
+            pub fn next(self: *Iterator) ?Section {
+                if (self.remaining == 0) return null;
+
+                const curret_usize: usize = @intFromPtr(self.current);
+                const next_ptr: *const anyopaque = @ptrFromInt(curret_usize + self.entry_size);
+
+                self.current = next_ptr;
+                self.remaining -= 1;
+
+                const current = self.current;
+
+                return .{
+                    .string_section = self.string_section,
+                    .inner = current,
+                    .entry_size = self.entry_size,
+                };
+            }
+        };
+    };
+
+    const Section32 = extern struct {
+        name_index: u32,
+        typ: u32,
+        flags: u32,
+        addr: u32,
+        offset: u32,
+        size: u32,
+        link: u32,
+        info: u32,
+        addralign: u32,
+        entry_size: u32,
+    };
+
+    const Section64 = extern struct {
+        name_index: u32,
+        typ: u32,
+        flags: u64,
+        addr: u64,
+        offset: u64,
+        size: u64,
+        link: u32,
+        info: u32,
+        addralign: u64,
+        entry_size: u64,
+    };
 };
 
 pub const APM = extern struct {

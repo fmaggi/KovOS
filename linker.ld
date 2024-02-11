@@ -6,15 +6,19 @@ SECTIONS
 
 	KERNEL_START = .;
 
+    .boot : 
+    {
+        KEEP(*(.multiboot))
+    }
+
 	.text  : ALIGN(4K)
 	{
-		KEEP(*(.multiboot))
-		*(.text)
+		*(.text, .text.*)
 	}
 
   	.rodata : ALIGN(4K)
   	{
-  		*(.rodata)
+  		*(.rodata, .rodata.*)
 	}
 
 	.data  : ALIGN(4K)
@@ -27,8 +31,10 @@ SECTIONS
 		*(COMMON)
 		*(.bss)
 	}
-	.phony : {
+	.phony : 
+    {
 
 	}
+
 	KERNEL_END = .;
 }

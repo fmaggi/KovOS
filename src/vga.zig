@@ -3,8 +3,8 @@ const HEIGHT = 25;
 
 var vga: [*]ColoredChar = @ptrFromInt(0xB8000);
 
-var x: u32 = 0;
-var y: u32 = 0;
+var X: u32 = 0;
+var Y: u32 = 0;
 
 pub const ColoredChar = extern struct {
     char: u8,
@@ -38,9 +38,9 @@ pub const Color = enum(u8) {
 
 pub fn putChar(c: u8, color: u8) void {
     if (c == '\n') {
-        if (y >= HEIGHT) @panic("Too much");
-        x = 0;
-        y += 1;
+        if (Y >= HEIGHT) @panic("Too much");
+        X = 0;
+        Y += 1;
         return;
     }
 
@@ -48,8 +48,8 @@ pub fn putChar(c: u8, color: u8) void {
         .color = color,
         .char = c,
     };
-    vga[x + y * WIDTH] = colored;
-    x += 1;
+    vga[X + Y * WIDTH] = colored;
+    X += 1;
 }
 
 pub fn write(str: []const u8, color: u8) void {
@@ -59,11 +59,11 @@ pub fn write(str: []const u8, color: u8) void {
 }
 
 pub fn set(pos_x: u32, pos_y: u32) void {
-    x = pos_x;
-    y = pos_y;
+    X = pos_x;
+    Y = pos_y;
 }
 
 pub fn reset() void {
-    x = 0;
-    y = 0;
+    X = 0;
+    Y = 0;
 }

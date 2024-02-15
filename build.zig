@@ -87,14 +87,14 @@ pub fn build(b: *std.Build) void {
 
     const qemu_iso_cmd_str = &[_][]const u8{
         "qemu-system-x86_64",
+        "-m",
+        "2G",
         "-cdrom",
         iso_path,
         // "-serial",
         // "stdio",
         // "-vga",
         // "virtio",
-        // "-m",
-        // "2G",
         "-no-reboot",
         "-no-shutdown",
     };

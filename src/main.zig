@@ -2,7 +2,8 @@ comptime {
     _ = @import("arch/x86_64/boot.zig");
 }
 
-const mem = @import("memory.zig");
+const mem = @import("memory/memory.zig");
+const paging = mem.paging;
 
 const Multiboot = @import("arch/x86_64/multiboot2.zig");
 
@@ -58,15 +59,21 @@ pub export fn kmain(magic: usize, address: usize) callconv(.C) void {
         @panic(@errorName(e));
     };
 
-    std.log.debug("kernel: {any}", .{allocator.kernel.start});
-    std.log.debug("bootloader: {any}", .{allocator.bootloader.start});
+    const u: u64 = 42 * 512 * 512 * 4096;
+    const addr: paging.VirtualAddress = @bitCast(u); // 42th P3 entry
+    const page = paging.Page.containingAddress(addr);
+    const frame = allocator.allocate() catch @panic("no more frames");
+    std.log.debug("None = {any}, map to {any}", .{ addr.translate(), frame });
+    paging.mapTo(page, frame, &allocator);
+    std.log.debug("Some = {any}", .{addr.translate()});
+    std.log.debug("next free frame: {any}", .{allocator.allocate() catch @panic("oom")});
 
-    var frame: mem.Frame = allocator.allocate() orelse @panic("no frame");
-    while (allocator.allocate()) |f| {
-        frame = f;
-    }
+    // var entry: paging.Entry = @bitCast(@as(u64, 0));
 
-    std.log.debug("{any}", .{frame});
+    // entry.present = true;
+    // entry.physical_address = 1;
+
+    // std.log.debug("{} {any}", .{ entry.physical_address, entry.getFrame() });
 
     vga.write("Ok", vga.Color.init(.White, .Green));
 }

@@ -1,14 +1,14 @@
 const std = @import("std");
 
-const MultibootInfo = extern struct {
+pub const Info = extern struct {
     total_size: u32,
     reserved: u32,
 
-    pub fn tagsLen(self: MultibootInfo) usize {
+    pub fn tagsLen(self: Info) usize {
         return @as(usize, self.total_size) - @sizeOf(u64);
     }
 
-    pub fn getTag(self: *const MultibootInfo, comptime T: type) ?*T {
+    pub fn getTag(self: *const Info, comptime T: type) ?*T {
         const tag_type = tagType(T);
         var current: *Tag = @ptrFromInt(@intFromPtr(self) + 8);
 
@@ -34,7 +34,7 @@ pub const Error = error{
     InvalidEndTag,
 };
 
-pub fn init(address: usize) Error!*MultibootInfo {
+pub fn init(address: usize) Error!*Info {
     if (address == 0) {
         return Error.NullPtr;
     }
@@ -43,7 +43,7 @@ pub fn init(address: usize) Error!*MultibootInfo {
         return Error.Misaligned;
     }
 
-    const info: *MultibootInfo = @ptrFromInt(address);
+    const info: *Info = @ptrFromInt(address);
 
     if (info.total_size == 0 or (info.total_size & 0b111) != 0) {
         return Error.InvalidSize;

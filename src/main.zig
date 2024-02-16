@@ -64,7 +64,7 @@ pub export fn kmain(magic: usize, address: usize) callconv(.C) void {
     const page = paging.Page.containingAddress(addr);
     const frame = allocator.allocate() catch @panic("no more frames");
     std.log.debug("None = {any}, map to {any}", .{ addr.translate(), frame });
-    paging.mapTo(page, frame, &allocator);
+    paging.mapTo(page, frame, .{}, &allocator);
     std.log.debug("Some = {any}", .{addr.translate()});
     std.log.debug("next free frame: {any}", .{allocator.allocate() catch @panic("oom")});
 

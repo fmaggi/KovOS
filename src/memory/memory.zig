@@ -24,6 +24,10 @@ pub const Frame = struct {
         return containingAddress(area.address + area.len - 1);
     }
 
+    pub fn startAddres(self: Frame) u64 {
+        return self.number * PAGE_SIZE;
+    }
+
     pub fn next(self: Frame) Frame {
         return .{ .number = self.number + 1 };
     }

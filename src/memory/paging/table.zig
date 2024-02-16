@@ -94,7 +94,7 @@ pub const Entry = packed struct(u64) {
 
     pub fn frame(self: Entry) ?Frame {
         // frames are page aligned, and so is physical_address
-        // so no need to convert anyhing
+        // so no need to convert anything
         return if (self.present)
             .{ .number = self.physical_address }
         else

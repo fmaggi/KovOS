@@ -9,18 +9,32 @@ const FrameAllocator = mem.FrameAllocator;
 const table = @import("paging/table.zig");
 const Table = table.Table;
 
-pub const P4: *Table(4) = @ptrFromInt(@as(u64, 0xffffffff_fffff000));
+const P4: *Table(4) = @ptrFromInt(@as(u64, 0xffffffff_fffff000));
 
-pub const PhysicalAddress = u64;
+pub fn identityMap(frame: Frame, flags: table.Entry.Flags, allocator: *FrameAllocator) void {
+    const page = Page.containingAddress(@bitCast(frame.startAddress()));
+    mapTo(page, frame, flags, allocator);
+}
 
-pub fn mapTo(page: Page, frame: Frame, allocator: *FrameAllocator) void {
+pub fn map(page: Page, flags: table.Entry.Flags, allocator: *FrameAllocator) void {
+    const frame = allocator.allocate() catch @panic("OOM");
+    mapTo(page, frame, flags, allocator);
+}
+
+pub fn mapTo(page: Page, frame: Frame, flags: table.Entry.Flags, allocator: *FrameAllocator) void {
     var P3 = P4.nextTableCreate(page.p4, allocator) catch @panic("OOM");
     var P2 = P3.nextTableCreate(page.p3, allocator) catch @panic("OOM");
     var P1 = P2.nextTableCreate(page.p2, allocator) catch @panic("OOM");
 
-    if (!P1.entries[page.p1].isUnused()) @panic("Used page");
-    P1.entries[page.p1] = table.Entry.init(frame, .{ .present = true });
+    const entry = &P1.entries[page.p1];
+
+    if (!entry.isUnused()) @panic("Used page");
+    var f = flags;
+    f.present = true;
+    entry.* = table.Entry.init(frame, f);
 }
+
+pub const PhysicalAddress = u64;
 
 pub const VirtualAddress = packed struct(u64) {
     offset: u12,
